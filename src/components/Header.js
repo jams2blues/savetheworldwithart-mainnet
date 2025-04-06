@@ -45,7 +45,7 @@ export default function Header() {
 
   const handleNetworkChange = (e) =>
     (window.location.href =
-      e.target.value === 'mainnet'
+      e.target.value === 'ghostnet'
         ? 'https://ghostnet.savetheworldwithart.io'
         : 'https://savetheworldwithart.io');
 
