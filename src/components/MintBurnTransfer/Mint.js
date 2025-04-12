@@ -817,7 +817,7 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
               underline="hover"
               color="primary"
             >
-              View on Ghostnet OBJKT
+              View on OBJKT
             </Link>
             <Link
               href={`https://better-call.dev/mainnet/${contractAddress}/operations`}
