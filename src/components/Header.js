@@ -54,9 +54,9 @@ export default function Header() {
 
   const handleNetworkChange = (e) => {
     window.location.href =
-      e.target.value === 'ghostnet'
-        ? 'https://ghostnet.savetheworldwithart.io'
-        : 'https://savetheworldwithart.io';
+      e.target.value === 'mainnet'
+        ? 'https://savetheworldwithart.io'
+        : 'https://ghostnet.savetheworldwithart.io';
   };
 
   const toggleDrawer = (open) => () => {
