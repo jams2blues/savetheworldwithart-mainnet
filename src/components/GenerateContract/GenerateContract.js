@@ -1,8 +1,8 @@
-/*Developed by @jams2blues with love for the Tezos community
+/*Developed by @jams2blues with love for the Tezos community
   File: src/components/GenerateContract/GenerateContract.js
-  Summary: Deploy V3 contracts with rich validation, fee‑estimation fallback,
-           auto‑prefill of author/creator with the connected wallet, upgraded
-           to MUI Grid v2 (size prop) and safer NFT preview handling.
+  Summary: Deploy V3 contracts with rich validation, fee-estimation fallback,
+           runtime guard-rails for wrong-network & unrevealed accounts,
+           and safer NFT preview handling (MUI Grid v2).
 */
 
 import React, { useState, useEffect, useContext, useMemo } from 'react';
@@ -74,7 +74,7 @@ const getByteSize = (u) => {
     return 0;
   }
 };
-/* user‑friendly error explainer */
+/* user-friendly error explainer */
 const explainTezosError = (err) => {
   if (!err?.message) return 'Unknown error';
   const m = err.message.toLowerCase();
@@ -86,7 +86,7 @@ const explainTezosError = (err) => {
   return err.message;
 };
 
-/* ─── on‑chain constants ───────────────────────────────────────── */
+/* ─── on-chain constants ───────────────────────────────────────── */
 const TEZOS_STORAGE_CONTENT_KEY = 'tezos-storage:content';
 const TEZOS_STORAGE_CONTENT_HEX = stringToHex(TEZOS_STORAGE_CONTENT_KEY);
 const CONTENT_KEY = 'content';
@@ -94,7 +94,7 @@ const STORAGE_COST_PER_BYTE = 0.00025;
 const OVERHEAD_BYTES = 5960;
 const MAX_METADATA_SIZE = 32768;
 
-/* Tooltip file‑types */
+/* Tooltip file-types */
 const supportedFiletypesList = [
   'image/bmp', 'image/gif', 'image/jpeg', 'image/png', 'image/apng',
   'image/svg+xml', 'image/webp',
@@ -121,7 +121,14 @@ const getV3Storage = (addr, meta) => ({
 
 /* ─── main component ───────────────────────────────────────────── */
 const GenerateContract = () => {
-  const { tezos, isWalletConnected, walletAddress } = useContext(WalletContext);
+  const {
+    tezos,
+    isWalletConnected,
+    walletAddress,
+    networkMismatch,   // guard-rail flags
+    needsReveal,
+    revealAccount
+  } = useContext(WalletContext);
 
   /* ── form / UI state ──────────────────────────── */
   const [formData, setFormData] = useState({
@@ -199,7 +206,7 @@ const GenerateContract = () => {
     switch (field) {
       case 'name': return !val ? 'Name required' : val.length > 30 ? 'Max 30 chars' : '';
       case 'description': return !val ? 'Description required' : val.length > 250 ? 'Max 250 chars' : '';
-      case 'symbol': return !val ? 'Symbol required' : !/^[A-Za-z0-9]{3,5}$/.test(val) ? '3‑5 alphanumerics' : '';
+      case 'symbol': return !val ? 'Symbol required' : !/^[A-Za-z0-9]{3,5}$/.test(val) ? '3-5 alphanumerics' : '';
       case 'authors': return !val ? 'Authors required' : val.length > 50 ? 'Max 50 chars' : '';
       case 'authorAddresses': {
         const auth = formData.authors.split(',').map((x) => x.trim()).filter(Boolean);
@@ -251,7 +258,7 @@ const GenerateContract = () => {
   const renderMetadataSizeIndicator = () => (
     <Typography variant="body2"
       sx={{ color: metadataSize > MAX_METADATA_SIZE ? 'error.main' : 'textSecondary', mb: 1 }}>
-      Estimated Metadata Size:&nbsp;{Math.floor(metadataSize)} / {MAX_METADATA_SIZE} bytes
+      Estimated Metadata Size:&nbsp;{Math.floor(metadataSize)} / {MAX_METADATA_SIZE} bytes
     </Typography>
   );
 
@@ -283,10 +290,12 @@ const GenerateContract = () => {
 
   /* DEPLOY handler */
   const handleDeployContract = async () => {
+    if (networkMismatch) { setSnackbar({ open: true, message: 'Wallet is on the wrong network', severity: 'warning' }); return; }
+    if (needsReveal)    { setSnackbar({ open: true, message: 'Reveal your account first', severity: 'info' }); return; }
     if (!validateForm()) { setSnackbar({ open: true, message: 'Fix validation errors first', severity: 'error' }); return; }
     if (!isWalletConnected || !walletAddress) { setSnackbar({ open: true, message: 'Connect your wallet first', severity: 'warning' }); return; }
     if (!modifiedMichelsonCode) { setSnackbar({ open: true, message: 'Generate the contract first', severity: 'warning' }); return; }
-    if (metadataSize > MAX_METADATA_SIZE) { setSnackbar({ open: true, message: `Metadata ${Math.floor(metadataSize)} B exceeds 32 KB limit`, severity: 'error' }); return; }
+    if (metadataSize > MAX_METADATA_SIZE) { setSnackbar({ open: true, message: `Metadata ${Math.floor(metadataSize)} B exceeds 32 KB limit`, severity: 'error' }); return; }
 
     setDeploying(true);
     setSnackbar({ open: true, message: 'Estimating fees…', severity: 'info' });
@@ -309,7 +318,7 @@ const GenerateContract = () => {
       const total = new BigNumber(feeTez).plus(storCost).toFixed(6);
 
       if (bal.isLessThan(total)) {
-        setSnackbar({ open: true, message: `Insufficient balance: need ≥ ${total} ꜩ`, severity: 'error' });
+        setSnackbar({ open: true, message: `Insufficient balance: need ≥ ${total} ꜩ`, severity: 'error' });
         setDeploying(false); return;
       }
 
@@ -373,14 +382,30 @@ const GenerateContract = () => {
     <Container elevation={3}>
       {/* header */}
       <Typography variant="h4" align="center" gutterBottom>
-        Deploy Your On‑Chain Tezos NFT Smart Contract
+        Deploy Your On-Chain Tezos NFT Smart Contract
       </Typography>
       <Typography variant="h5" align="center" gutterBottom>
         NFT Collection Contract
       </Typography>
       <Typography variant="body1" align="center" gutterBottom>
-        Ready to mint NFTs fully on‑chain? Fill in the details below and we’ll handle the metadata magic before deploying.
+        Ready to mint NFTs fully on-chain? Fill in the details below and we’ll handle the metadata magic before deploying.
       </Typography>
+
+      {/* diagnostic banners */}
+      {networkMismatch && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Wallet network doesn’t match this site. Switch networks or open the correct URL.
+        </Alert>
+      )}
+      {needsReveal && !networkMismatch && (
+        <Alert
+          severity="info"
+          sx={{ mb: 2 }}
+          action={<Button color="inherit" size="small" onClick={revealAccount}>Reveal</Button>}
+        >
+          First transaction must reveal your account. Click “Reveal” to initialize.
+        </Alert>
+      )}
 
       {/* disclaimer */}
       <Section>
@@ -535,7 +560,7 @@ const GenerateContract = () => {
       {/* preview */}
       {!!metadataPreview.imageUri && (
         <Section>
-          <Typography variant="subtitle1" gutterBottom>Metadata Preview:</Typography>
+          <Typography variant="subtitle1" gutterBottom>Metadata Preview:</Typography>
           <NFTPreview metadata={metadataPreview} />
         </Section>
       )}
@@ -543,20 +568,36 @@ const GenerateContract = () => {
       {/* deploy button */}
       <Grid container spacing={2} sx={{ textAlign: 'center', mt: 2 }}>
         <Grid size={12}>
-          <Typography variant="caption" display="block" gutterBottom>Get your collection on‑chain!</Typography>
+          <Typography variant="caption" display="block" gutterBottom>Get your collection on-chain!</Typography>
           <Button
             variant="contained"
             color="primary"
             onClick={handleDeployContract}
-            disabled={deploying || !modifiedMichelsonCode || !!Object.keys(formErrors).length}
+            disabled={
+              deploying ||
+              !modifiedMichelsonCode ||
+              !!Object.keys(formErrors).length ||
+              networkMismatch ||            // guard-rail
+              (needsReveal && !networkMismatch) /* reveal needed only when chain matches */
+            }
             startIcon={deploying && <CircularProgress size={20} />}
             sx={{ maxWidth: 300, mx: 'auto' }}
           >
-            {deploying ? 'Deploying…' : 'Deploy Contract'}
+            {deploying ? 'Deploying…' : 'Deploy Contract'}
           </Button>
+          {networkMismatch && (
+            <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+              Wrong network – switch in wallet or open correct URL.
+            </Typography>
+          )}
+          {needsReveal && !networkMismatch && (
+            <Typography variant="body2" color="info.main" sx={{ mt: 1 }}>
+              Reveal your account first.
+            </Typography>
+          )}
           {est.feeTez && (
             <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-              Estimated Fees: {est.feeTez} ꜩ
+              Estimated Fees: {est.feeTez} ꜩ
             </Typography>
           )}
         </Grid>
