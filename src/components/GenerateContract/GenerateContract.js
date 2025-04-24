@@ -204,7 +204,7 @@ const GenerateContract = () => {
   /* validation rules */
   const validateField = (field, val) => {
     switch (field) {
-      case 'name': return !val ? 'Name required' : val.length > 30 ? 'Max 30 chars' : '';
+      case 'name': return !val ? 'Name required' : val.length > 50 ? 'Max 50 chars' : '';
       case 'description': return !val ? 'Description required' : val.length > 250 ? 'Max 250 chars' : '';
       case 'symbol': return !val ? 'Symbol required' : !/^[A-Za-z0-9]{3,5}$/.test(val) ? '3-5 alphanumerics' : '';
       case 'authors': return !val ? 'Authors required' : val.length > 50 ? 'Max 50 chars' : '';
@@ -437,8 +437,8 @@ const GenerateContract = () => {
                 fullWidth
                 placeholder="e.g. ZeroArt Collection"
                 required
-                inputProps={{ maxLength: 30 }}
-                helperText={`${formData.name.length}/30 characters`}
+                inputProps={{ maxLength: 50 }}
+                helperText={`${formData.name.length}/50 characters`}
                 error={!!formErrors.name}
               />
             </Grid>
