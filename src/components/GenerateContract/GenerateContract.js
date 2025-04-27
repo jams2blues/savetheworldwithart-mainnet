@@ -398,7 +398,7 @@ const GenerateContract = () => {
       <Section>
         <Alert severity="warning">
           <Typography variant="body2">
-            <strong>Disclaimer:</strong> Deployments are <em>immutable</em>. Always test on Ghostnet before mainnet.
+            <strong>Disclaimer:</strong> Deployments are <em>immutable</em>. Always test on Ghostnet before mainnet. Standard keyboard characters recommended, emojis and symbols might fail.
           </Typography>
         </Alert>
       </Section>
@@ -605,9 +605,9 @@ const GenerateContract = () => {
           </Button>
           <Typography variant="body2" sx={{ mt: 1 }}>
             View on&nbsp;
-            <Link href={`https://tzkt.io/${contractAddress}/operations`} target="_blank" rel="noopener noreferrer" underline="hover">view on TzKT</Link>
+            <Link href={`https://ghostnet.tzkt.io/${contractAddress}/operations`} target="_blank" rel="noopener noreferrer" underline="hover">view on TzKT</Link>
             &nbsp;or&nbsp;
-            <Link href={`https://objkt.com/collections/${contractAddress}`} target="_blank" rel="noopener noreferrer" underline="hover">OBJKT.com</Link>.
+            <Link href={`https://ghostnet.objkt.com/collections/${contractAddress}`} target="_blank" rel="noopener noreferrer" underline="hover">OBJKT.com</Link>.
           </Typography>
         </Section>
       )}
@@ -656,10 +656,10 @@ const GenerateContract = () => {
             </Button>
           </Box>
           <Box sx={{ display: 'flex', justifyContent: 'space-around', mt: 2 }}>
-            <Link href={`https://objkt.com/collections/${contractAddress}`} target="_blank" rel="noopener noreferrer" underline="hover" color="primary">
+            <Link href={`https://ghostnet.objkt.com/collections/${contractAddress}`} target="_blank" rel="noopener noreferrer" underline="hover" color="primary">
               View on OBJKT
             </Link>
-            <Link href={`https://tzkt.io/${contractAddress}/operations`} target="_blank" rel="noopener noreferrer" underline="hover" color="primary">
+            <Link href={`https://ghostnet.tzkt.io/${contractAddress}/operations`} target="_blank" rel="noopener noreferrer" underline="hover" color="primary">
               View on TzKT
             </Link>
           </Box>
