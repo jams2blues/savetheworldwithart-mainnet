@@ -44,7 +44,8 @@ const MENU_ITEMS = [
   { text: 'Deploy Contract', link: '/generate' },
   { text: 'Manage Contract', link: '/manage-contract' },
   { text: 'On-Chain License',link: '/on-chain-license' },
-  { text: 'Terms',           link: '/terms' }
+  { text: 'Terms',           link: '/terms' },
+  { text: 'On-Chain Viewer',       link: '/on-chain-viewer' }
 ];
 
 /* —— Domain redirect helper —— */

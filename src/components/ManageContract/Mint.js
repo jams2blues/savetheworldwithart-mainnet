@@ -1,10 +1,12 @@
 /*Developed by @jams2blues with love for the Tezos community
   File: src/components/ManageContract/Mint.js
-  Summary: Fully-on-chain NFT mint form – FA2/TZIP-12 compliant across V1-V3.
+  Summary: Unified Mint form for Ghostnet & Mainnet – v1‑v3 compliant, v2b fix,
+           shared MintPreview, Emotion‑styled.
 */
 
+// BEGIN: imports -------------------------------------------------------------
 import React, { useState, useEffect, useRef, useContext } from 'react';
-import styled from 'styled-components';
+import styled from '@emotion/styled';
 import {
   Typography,
   TextField,
@@ -36,7 +38,9 @@ import { MichelsonMap } from '@taquito/taquito';
 import { BigNumber } from 'bignumber.js';
 import { Buffer } from 'buffer';
 import MintUpload from './MintUpload';
+import MintPreview from './MintPreview';
 import { WalletContext } from '../../contexts/WalletContext';
+// END: imports ---------------------------------------------------------------
 
 /* ─── constants ───────────────────────────────────── */
 const MAX_ATTRIBUTES = 10;
@@ -90,6 +94,18 @@ const Section = styled.div`
   margin-top: 20px;
 `;
 
+/* ─── buildMintOp helper ─────────────────────────── */
+/**
+ * Return Taquito WalletMethod with correct argument order per ZeroContract.
+ */
+const buildMintOp = (contract, version, amount, map, to) => {
+  const amt = parseInt(amount, 10);
+  if (version === 'v1') return contract.methods.mint(map, to);
+  if (version === 'v2b') return contract.methods.mint(map, to, amt);
+  // default for v2a, v2c‑e, v3
+  return contract.methods.mint(amt, map, to);
+};
+
 /* ─── utility fns ─────────────────────────────────── */
 const stringToHex = (str) => Buffer.from(str, 'utf8').toString('hex');
 const isValidTezosAddress = (a) =>
@@ -129,7 +145,7 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
   const { walletAddress, networkMismatch, needsReveal, revealAccount } =
     useContext(WalletContext);
 
-  /* ── form & UI state ─────────────────────────── */
+  /* form & UI state */
   const [formData, setFormData] = useState(INITIAL_FORM);
   const [attributes, setAttributes] = useState([{ name: '', value: '' }]);
   const [artifactFile, setArtifactFile] = useState(null);
@@ -139,23 +155,16 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
   const [tagInput, setTagInput] = useState('');
   const tagInputRef = useRef(null);
 
-  /* live-computed */
+  /* computed / dialog */
   const [metadataSize, setMetadataSize] = useState(0);
   const [loading, setLoading] = useState(false);
-
-  /* estimation & confirm dialog */
   const [est, setEst] = useState({});
-  const [dialog, setDialog] = useState({
-    open: false,
-    estimationFailed: false,
-    reason: '',
-  });
+  const [dialog, setDialog] = useState({ open: false, estimationFailed: false, reason: '' });
 
-  /* handy snackbar */
   const snack = (msg, severity = 'warning') =>
     setSnackbar({ open: true, message: msg, severity });
 
-  /* ── helpers ──────────────────────────────────── */
+  /* helpers */
   const autofillFromWallet = (base = INITIAL_FORM, keepAmount = false) => ({
     ...base,
     creators: walletAddress || '',
@@ -163,7 +172,7 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
     amount: keepAmount ? base.amount : contractVersion === 'v1' ? '1' : base.amount,
   });
 
-  /* ── reset on contract change ─────────────────── */
+  /* reset on contract/version change */
   useEffect(() => {
     setFormData(autofillFromWallet());
     setAttributes([{ name: '', value: '' }]);
@@ -176,13 +185,13 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
     setEst({});
   }, [contractAddress, contractVersion]);
 
-  /* ── wallet autofill when walletAddress changes ─ */
+  /* wallet autofill */
   useEffect(() => {
     setFormData((p) => {
-      const next = { ...p };
-      if (!next.creators.trim()) next.creators = walletAddress || '';
-      if (!next.toAddress.trim()) next.toAddress = walletAddress || '';
-      return next;
+      const n = { ...p };
+      if (!n.creators.trim()) n.creators = walletAddress || '';
+      if (!n.toAddress.trim()) n.toAddress = walletAddress || '';
+      return n;
     });
   }, [walletAddress]);
 
@@ -327,11 +336,6 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
     return m;
   };
 
-  /* metadata size tracker */
-  useEffect(() => {
-    setMetadataSize(approximateMetadataSize(buildMetadata()));
-  }, [formData, attributes, tags, artifactFile, artifactDataUrl]);
-
   /* ── validation ───────────────────────────────── */
   const validateForm = () => {
     const required = ['name', 'creators', 'toAddress', 'license'];
@@ -399,27 +403,21 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
     return true;
   };
 
-  /* ── fee estimation ───────────────────────────── */
+  /* size tracker */
+  useEffect(() => {
+    setMetadataSize(approximateMetadataSize(buildMetadata()));
+  }, [formData, attributes, tags, artifactFile, artifactDataUrl]);
+
+  /* fee estimation */
   const estimateFees = async () => {
     try {
       const map = buildMetadata();
       const contract = await tezos.wallet.at(contractAddress);
-      const op =
-        contractVersion === 'v1'
-          ? contract.methods.mint(map, formData.toAddress)
-          : contract.methods.mint(
-              parseInt(formData.amount, 10),
-              map,
-              formData.toAddress
-            );
+      const op = buildMintOp(contract, contractVersion, formData.amount, map, formData.toAddress);
       const params = await op.toTransferParams();
       const estRaw = await tezos.estimate.transfer(params);
-      const feeTez = new BigNumber(estRaw.suggestedFeeMutez)
-        .dividedBy(1e6)
-        .toFixed(6);
-      const storageTez = new BigNumber(estRaw.storageLimit)
-        .times(STORAGE_COST_PER_BYTE)
-        .toFixed(6);
+      const feeTez = new BigNumber(estRaw.suggestedFeeMutez).dividedBy(1e6).toFixed(6);
+      const storageTez = new BigNumber(estRaw.storageLimit).times(STORAGE_COST_PER_BYTE).toFixed(6);
       const totalTez = new BigNumber(feeTez).plus(storageTez).toFixed(6);
       const obj = {
         feeTez,
@@ -458,26 +456,18 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
     }
   };
 
-  /* confirmMint reset section */
+  /* confirmMint */
   const confirmMint = async () => {
     setDialog({ open: false, estimationFailed: false, reason: '' });
     setLoading(true);
     try {
       const map = buildMetadata();
       const contract = await tezos.wallet.at(contractAddress);
-      const op =
-        contractVersion === 'v1'
-          ? contract.methods.mint(map, formData.toAddress)
-          : contract.methods.mint(
-              parseInt(formData.amount, 10),
-              map,
-              formData.toAddress
-            );
+      const op = buildMintOp(contract, contractVersion, formData.amount, map, formData.toAddress);
       const sent = await op.send();
       snack('Minting in progress…', 'info');
       await sent.confirmation();
       snack('NFT minted successfully!', 'success');
-      /* reset & immediately re-autofill */
       setFormData(autofillFromWallet());
       setAttributes([{ name: '', value: '' }]);
       setArtifactFile(null);
@@ -492,7 +482,7 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
       setLoading(false);
     }
   };
-
+  
   /* ─── UI ───────────────────────────────────────── */
   return (
     <div style={{ marginTop: 20 }}>
@@ -555,7 +545,7 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
           />
         </Grid>
 
-        {/* Artifact */}
+        {/* Artifact File upload */}
         <Grid size={12}>
           <Typography variant="body1">Artifact File (≤20 KB recommended)</Typography>
           <MintUpload
@@ -563,28 +553,15 @@ const Mint = ({ contractAddress, tezos, contractVersion, setSnackbar }) => {
             onFileDataUrlChange={setArtifactDataUrl}
           />
           {artifactFile && (
-            <Typography variant="caption">
+            <Typography variant="caption" sx={{ mt:0.5 }}>
               Selected file: {artifactFile.name}
             </Typography>
           )}
         </Grid>
-
         {/* Preview */}
         {artifactDataUrl && (
           <Grid size={12}>
-            <Typography variant="body1">Preview:</Typography>
-            <img
-              src={artifactDataUrl}
-              alt="NFT preview"
-              style={{
-                maxWidth: '100%',
-                maxHeight: 300,
-                marginTop: 10,
-                borderRadius: 8,
-                objectFit: 'contain',
-                backgroundColor: '#f5f5f5',
-              }}
-            />
+            <MintPreview dataUrl={artifactDataUrl} fileName={artifactFile?.name} />
           </Grid>
         )}
 
